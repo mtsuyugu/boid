@@ -1,5 +1,5 @@
 const DEBUG = 0;
-const NUM_OF_BOIDS = 500;
+const NUM_OF_BOIDS = 200;
 const FRAME_RATE = 45;
 
 function debug() {
@@ -50,19 +50,17 @@ class Vec2 {
 }
 
 class Boid {
-    static radius = 10;
-    static maxV = 10;
-    static visualRange = 100;
-    static avoidRange = 30;
+    static MaxV = 14;
+    static VisualRange = 100;
+    static AvoidRange = 40;
     static CohesionFactoor = 0.005;
     static SeparationFactor = 0.05;
     static AlignmentFactor = 0.005;
-    static Margin = 100;
 
     constructor(i){
         this.id = i;
         this.pos = new Vec2(Math.random() * width,  Math.random() * height);
-        this.vel = new Vec2(Math.random() * Boid.maxV - Boid.maxV/2, Math.random() * Boid.maxV - Boid.maxV/2) ;
+        this.vel = new Vec2(Math.random() * Boid.MaxV - Boid.MaxV/2, Math.random() * Boid.MaxV - Boid.MaxV/2) ;
     }
 
     updatePos() {
@@ -103,18 +101,18 @@ class Boid {
                 continue;
             }
             var distance = Vec2.distance(this.pos, boids[i].pos);
-            if ( distance < Boid.visualRange ){
+            if ( distance < Boid.VisualRange ){
                 // gravity of boids
                 gravityOfFlocks.add(boids[i].pos);
                 // velocity of flocks
                 alignmentVec.add(boids[i].vel);
                 numInVisualRange += 1;
             }
-            if (distance < Boid.avoidRange) {
+            if (distance < Boid.AvoidRange) {
                 // separation vector
                 var delta = Vec2.sSub(this.pos, boids[i].pos); // 変位
                 var normOfDelta = delta.norm();
-                var normOfSVec =  - normOfDelta + Boid.avoidRange; // 近いほど 強く離れる 
+                var normOfSVec =  - normOfDelta + Boid.AvoidRange; // 近いほど 強く離れる 
                 delta.scale(normOfSVec/normOfDelta);
                 separationVec.add(delta);
                 numInAvoidRange += 1;
@@ -142,25 +140,35 @@ class Boid {
         this.vel = Boid.limitV(this.vel.add(deltaV));
 
         // 壁に近づくとゆっくりになる
-        if (this.pos.x < Boid.Margin) {
-            this.vel.x += 1;
+        var margin = Boid.VisualRange
+        var vx = margin / Math.abs(this.vel.x) / 2;
+        var vy = margin / Math.abs(this.vel.y) / 2;
+        if (this.pos.x < margin) {
+            this.vel.x += 3;
         }
-        if (this.pos.x > width - Boid.Margin) {
-            this.vel.x -= 1;
+        if (this.pos.x > width - margin) {
+            this.vel.x -= 3;
         }
-        if (this.pos.y < Boid.Margin) {
-            this.vel.y += 1;
+        if (this.pos.y < margin) {
+            this.vel.y += 3; 
         }
-        if (this.pos.y > height - Boid.Margin) {
-            this.vel.y -= 1;
+        if (this.pos.y > height - margin) {
+            this.vel.y -= 3;
         }
 
     } 
 
-    display() {
+    display(showRange) {
         push();
         noStroke();
         translate(this.pos.x, this.pos.y);
+        if (showRange) {
+            fill(color(255, 0, 0, 100));
+            circle(0, 0, Boid.VisualRange*2);
+            fill(color(0, 255, 0, 100));
+            circle(0, 0, Boid.AvoidRange*2);
+        }
+        fill(256);
         rotate(Math.atan2(this.vel.y, this.vel.x)+4/PI);
         triangle(-5, 5, 0, -7, 5, 5);
 //        circle(0, 0, 10);
@@ -168,7 +176,7 @@ class Boid {
     }
 
     static limitV(v) {
-        var result =  Vec2.upperLimit(v, Boid.maxV);
+        var result =  Vec2.upperLimit(v, Boid.MaxV);
         return result;
     }
 
@@ -215,21 +223,34 @@ function initBoids() {
 var cohesionSlider;
 var separationSlider;
 var alignmentSlider;;
+var avoidRangeSlider;
 
 function setupUI() {
     cohesionSlider = new SliderWithLabel(10, 10, "Cohesion", 0.001, 0.1, 0.005);
     separationSlider = new SliderWithLabel(10, cohesionSlider.bottom(), "Separation", 0.001, 0.1, 0.05);
     alignmentSlider = new SliderWithLabel(10, separationSlider.bottom(), "Alignment", 0.001, 0.1, 0.005);
+    visualRangeSlider = new SliderWithLabel(10, alignmentSlider.bottom(), "VisualRange", 1, 200, 100);
+    avoidRangeSlider = new SliderWithLabel(10, visualRangeSlider.bottom(), "AvoidRange", 1, 100, 30);
 }
 
 function updateUI(){
     cohesionSlider.update();
     separationSlider.update();
     alignmentSlider.update();
+    visualRangeSlider.update();
+    avoidRangeSlider.update();
+}
+
+function updateParameter(){
+    Boid.CohesionFactoor = cohesionSlider.value();
+    Boid.SeparationFactor = separationSlider.value();
+    Boid.AlignmentFactor = alignmentSlider.value();
+    Boid.AvoidRange = avoidRangeSlider.value();
+    Boid.VisualRange = visualRangeSlider.value();
 }
 
 function setup() {
-    createCanvas(800, 600);
+    createCanvas(window.innerWidth-10, window.innerHeight-10);
     setupUI();
     initBoids();
     frameRate(FRAME_RATE);
@@ -239,12 +260,10 @@ function draw() {
     resizeCanvas(window.innerWidth-10, window.innerHeight-10);
     background(150);
     updateUI();
-    Boid.CohesionFactoor = cohesionSlider.value();
-    Boid.SeparationFactor = separationSlider.value();
-    Boid.AlignmentFactor = alignmentSlider.value();
+    updateParameter();
     for (var i = 0; i < NUM_OF_BOIDS; i++) {
         boids[i].update();
-        boids[i].display();
+        boids[i].display( DEBUG && i == 0);
     }
 //    noLoop();
 }
